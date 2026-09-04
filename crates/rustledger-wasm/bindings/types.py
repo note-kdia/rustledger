@@ -263,6 +263,32 @@ class Severity(RootModel[str]):
     root: str = Field(..., description="Error severity level.")
 
 
+class SourceLocationJson(BaseModel):
+    """
+    Where a directive was written in the source.
+
+    Emitted by the multi-file surface (`Ledger.fromFiles` and the
+    `Ledger.fromCache` blobs it produces), which is the only path that
+    carries a source map. Directives with no source text — the `Open`s a
+    synth plugin adds for accounts a ledger never opened — have no
+    location, and neither do the single-source entry points (`parse`,
+    `ParsedLedger`), which do not thread file positions yet.
+
+    Lines are 1-based and inclusive on both ends, matching [`Error`]'s
+    `line` / `end_line`. `end_line` is the last line the directive covers,
+    so a transaction spans its header through its final posting.
+    """
+
+    end_line: int = Field(
+        ..., description="1-based line where the directive ends (inclusive).", ge=0
+    )
+    file: str = Field(
+        ...,
+        description="File the directive was read from, as keyed in the map handed to\n`Ledger.fromFiles`.",
+    )
+    line: int = Field(..., description="1-based line where the directive starts.", ge=0)
+
+
 class SymbolKind(RootModel[str]):
     root: str = Field(..., description="The kind of a symbol.")
 
@@ -414,6 +440,10 @@ class DirectiveJson1(BaseModel):
     date: str
     flag: str
     links: list[str]
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     narration: str | None = Field(
         None,
@@ -436,6 +466,10 @@ class DirectiveJson2(BaseModel):
     account: str
     amount: AmountValue
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     tolerance: str | None = Field(
         None,
@@ -453,6 +487,10 @@ class DirectiveJson3(BaseModel):
     booking: str | None = None
     currencies: list[str]
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["open"]
 
@@ -464,6 +502,10 @@ class DirectiveJson4(BaseModel):
 
     account: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["close"]
 
@@ -475,6 +517,10 @@ class DirectiveJson5(BaseModel):
 
     currency: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["commodity"]
 
@@ -486,6 +532,10 @@ class DirectiveJson6(BaseModel):
 
     account: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     source_account: str
     type: Literal["pad"]
@@ -498,6 +548,10 @@ class DirectiveJson7(BaseModel):
 
     date: str
     event_type: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["event"]
     value: str
@@ -511,6 +565,10 @@ class DirectiveJson8(BaseModel):
     account: str
     comment: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["note"]
 
@@ -524,6 +582,10 @@ class DirectiveJson9(BaseModel):
     date: str
     links: list[str] | None = Field(
         None, description="Links attached to the document directive (issue #1144)."
+    )
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
     )
     meta: dict[str, MetaValueJson] | None = None
     path: str
@@ -541,6 +603,10 @@ class DirectiveJson10(BaseModel):
     amount: AmountValue
     currency: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["price"]
 
@@ -551,6 +617,10 @@ class DirectiveJson11(BaseModel):
     """
 
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     name: str
     query_string: str
@@ -583,6 +653,10 @@ class DirectiveJson12(BaseModel):
 
     custom_type: str
     date: str
+    location: SourceLocationJson | None = Field(
+        None,
+        description="Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`]).",
+    )
     meta: dict[str, MetaValueJson] | None = None
     type: Literal["custom"]
     values: list[TypedValueJson] | None = Field(

@@ -12,12 +12,14 @@ use rustledger_core::Directive;
 use rustledger_parser::ParseResult as ParserResult;
 
 use crate::cache;
-use crate::convert::directive_to_json;
+use crate::convert::{directive_to_json, directive_to_json_at};
 use crate::editor;
 use crate::helpers::{load_and_book, run_validation, to_js};
 #[cfg(feature = "plugins")]
 use crate::types::PluginResult;
-use crate::types::{Error, FormatResult, LedgerOptions, PadResult, QueryResult};
+use crate::types::{
+    Error, FormatResult, LedgerOptions, PadResult, QueryResult, SourceLocationJson,
+};
 
 // =============================================================================
 // Shared query/directive logic (used by both ParsedLedger and Ledger)
@@ -161,6 +163,54 @@ fn execute_plugin(directives: &[Directive], plugin_name: &str) -> Result<JsValue
             .collect(),
     };
     to_js(&result)
+}
+
+/// Where each directive was written, aligned with `directives`.
+///
+/// The loader hands back `Spanned<Directive>` (a byte range plus the id of
+/// the file it was read from) and the source map that resolves those ids to
+/// paths and lines; both are dropped when the directives are stored, so the
+/// locations are read off here while they are still in hand.
+///
+/// A directive a plugin synthesized has no source text — the loader marks it
+/// with `SYNTHESIZED_FILE_ID` — and gets `None`.
+fn locations_of(
+    directives: &[rustledger_core::Spanned<Directive>],
+    source_map: &rustledger_loader::SourceMap,
+) -> Vec<Option<SourceLocationJson>> {
+    directives
+        .iter()
+        .map(|spanned| {
+            if spanned.file_id == rustledger_core::SYNTHESIZED_FILE_ID {
+                return None;
+            }
+            let file = source_map.get(spanned.file_id as usize)?;
+            let (line, _) = file.line_col(spanned.span.start);
+            // The span's end is exclusive and lands after the directive's
+            // final newline, which is already the next line. Step back one
+            // byte to name the last line the directive actually covers.
+            let last = spanned.span.end.saturating_sub(1).max(spanned.span.start);
+            let (mut end_line, _) = file.line_col(last);
+            // A directive's span runs to the start of the next one, so it
+            // swallows the blank lines between them. Those separate the two
+            // and belong to neither; drop them. A trailing COMMENT is left
+            // in — the parser reads it as part of the directive
+            // (`Transaction::trailing_comments`).
+            while end_line > line
+                && file
+                    .line(end_line)
+                    .is_some_and(|text| text.trim().is_empty())
+            {
+                end_line -= 1;
+            }
+
+            Some(SourceLocationJson {
+                file: file.path.display().to_string(),
+                line: u32::try_from(line).unwrap_or(u32::MAX),
+                end_line: u32::try_from(end_line).unwrap_or(u32::MAX),
+            })
+        })
+        .collect()
 }
 
 // =============================================================================
@@ -492,6 +542,8 @@ impl ParsedLedger {
 pub struct Ledger {
     /// The booked directives from all files.
     directives: Vec<Directive>,
+    /// Where each directive was written, aligned with `directives`.
+    locations: Vec<Option<SourceLocationJson>>,
     /// Ledger options.
     options: LedgerOptions,
     /// Configured account-type roots (`name_*` renames) for query
@@ -542,6 +594,7 @@ impl Ledger {
             Err(e) => {
                 return Ok(Self {
                     directives: Vec::new(),
+                    locations: Vec::new(),
                     options: LedgerOptions::default(),
                     account_types: rustledger_core::AccountTypes::default(),
                     errors: vec![Error::new(format!("Load error: {e}"))],
@@ -563,6 +616,9 @@ impl Ledger {
 
         match process(load_result, &load_options) {
             Ok(ledger) => {
+                // Read the locations before the `Spanned` wrappers are
+                // unwrapped; the source map goes out of scope with `ledger`.
+                let locations = locations_of(&ledger.directives, &ledger.source_map);
                 let directives: Vec<Directive> =
                     ledger.directives.into_iter().map(|s| s.value).collect();
                 let mut errors: Vec<Error> = ledger.errors.into_iter().map(Error::from).collect();
@@ -575,6 +631,7 @@ impl Ledger {
 
                 Ok(Self {
                     directives,
+                    locations,
                     options,
                     account_types,
                     errors,
@@ -583,6 +640,7 @@ impl Ledger {
             }
             Err(e) => Ok(Self {
                 directives: Vec::new(),
+                locations: Vec::new(),
                 options,
                 account_types,
                 errors: vec![Error::new(format!("Processing error: {e}"))],
@@ -603,10 +661,20 @@ impl Ledger {
         to_js(&self.errors)
     }
 
-    /// Get the parsed directives.
+    /// Get the parsed directives, each carrying where it was written.
     #[wasm_bindgen(js_name = "getDirectives")]
     pub fn get_directives(&self) -> Result<JsValue, JsError> {
-        let directives: Vec<_> = self.directives.iter().map(directive_to_json).collect();
+        let directives: Vec<_> = self
+            .directives
+            .iter()
+            .enumerate()
+            .map(|(index, directive)| {
+                // `get` rather than an index: a hand-built cache blob can
+                // carry fewer locations than directives, and a missing one
+                // means "unknown", not a panic.
+                directive_to_json_at(directive, self.locations.get(index).cloned().flatten())
+            })
+            .collect();
         to_js(&directives)
     }
 
@@ -674,6 +742,7 @@ impl Ledger {
     pub fn serialize(&self) -> Result<Vec<u8>, JsError> {
         let payload = cache::LedgerPayload {
             directives: self.directives.clone(),
+            locations: self.locations.clone(),
             options: self.options.clone(),
             account_type_names: vec![
                 self.account_types.assets.clone(),
@@ -718,10 +787,115 @@ impl Ledger {
 
         Ok(Self {
             directives: payload.directives,
+            locations: payload.locations,
             options: payload.options,
             account_types,
             errors: payload.errors,
             editor_cache,
         })
+    }
+}
+
+// Host-only: `Ledger::from_files` takes a `JsValue`, so the multi-file class
+// itself cannot be built off-target. `locations_of` is the part that reads
+// the loader's source map, and it takes plain loader types.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use rustledger_loader::{LoadOptions, Loader, VirtualFileSystem, process};
+
+    /// Load a ledger the way `Ledger::from_files` does.
+    fn load(files: &[(&str, &str)], entry_point: &str) -> rustledger_loader::Ledger {
+        let mut vfs = VirtualFileSystem::new();
+        for (path, source) in files {
+            vfs.add_file(*path, *source);
+        }
+        let raw = Loader::new()
+            .with_filesystem(Box::new(vfs))
+            .load(Path::new(entry_point))
+            .expect("the ledger loads");
+
+        process(
+            raw,
+            &LoadOptions {
+                validate: true,
+                ..Default::default()
+            },
+        )
+        .expect("the ledger processes")
+    }
+
+    #[test]
+    fn directives_carry_the_file_and_lines_they_were_written_on() {
+        let main = "\
+option \"operating_currency\" \"JPY\"
+include \"sub.beancount\"
+
+2025-01-10 open Assets:Cash JPY
+2025-01-10 open Expenses:Food JPY
+
+2025-01-28 * \"Groceries\"
+  Expenses:Food   4200 JPY
+  Assets:Cash
+";
+        let sub = "\
+2025-02-14 * \"Lunch\"
+  Expenses:Food    780 JPY
+  Assets:Cash
+";
+        let ledger = load(
+            &[("main.beancount", main), ("sub.beancount", sub)],
+            "main.beancount",
+        );
+
+        let located: Vec<_> = locations_of(&ledger.directives, &ledger.source_map)
+            .into_iter()
+            .map(|location| {
+                let location = location.expect("every directive here was written in a file");
+                (location.file, location.line, location.end_line)
+            })
+            .collect();
+
+        assert_eq!(
+            located,
+            vec![
+                ("main.beancount".to_string(), 4, 4),
+                // The blank line after it is a separator, not part of the open.
+                ("main.beancount".to_string(), 5, 5),
+                // A transaction runs from its header through its last posting.
+                ("main.beancount".to_string(), 7, 9),
+                // Included files are located in their own file, not the entry point.
+                ("sub.beancount".to_string(), 1, 3),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_directive_a_plugin_synthesized_has_no_location() {
+        let main = "\
+plugin \"beancount.plugins.auto_accounts\"
+
+2025-01-28 * \"Groceries\"
+  Expenses:Food   4200 JPY
+  Assets:Cash
+";
+        let ledger = load(&[("main.beancount", main)], "main.beancount");
+        let locations = locations_of(&ledger.directives, &ledger.source_map);
+
+        // The plugin opens the two accounts the transaction uses; those Opens
+        // are nowhere in the text, so they have no place to point at.
+        let synthesized = ledger
+            .directives
+            .iter()
+            .zip(&locations)
+            .filter(|(directive, _)| matches!(directive.value, Directive::Open(_)))
+            .collect::<Vec<_>>();
+        assert_eq!(synthesized.len(), 2);
+        assert!(synthesized.iter().all(|(_, location)| location.is_none()));
+
+        // The transaction that is in the text still knows where it is.
+        let written = locations.last().expect("the transaction is last");
+        let written = written.as_ref().expect("it was written in the file");
+        assert_eq!((written.line, written.end_line), (3, 5));
     }
 }

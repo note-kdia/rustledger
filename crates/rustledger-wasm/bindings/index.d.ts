@@ -247,6 +247,11 @@ export type DirectiveJson =
       links: Array<string>;
       postings: Array<PostingJson>;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "balance";
@@ -259,6 +264,11 @@ export type DirectiveJson =
        */
       tolerance?: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "open";
@@ -267,15 +277,45 @@ export type DirectiveJson =
       currencies: Array<string>;
       booking?: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
-  | { type: "close"; date: string; account: string; meta?: { [key in string]: MetaValueJson } }
-  | { type: "commodity"; date: string; currency: string; meta?: { [key in string]: MetaValueJson } }
+  | {
+      type: "close";
+      date: string;
+      account: string;
+      meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
+    }
+  | {
+      type: "commodity";
+      date: string;
+      currency: string;
+      meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
+    }
   | {
       type: "pad";
       date: string;
       account: string;
       source_account: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "event";
@@ -283,6 +323,11 @@ export type DirectiveJson =
       event_type: string;
       value: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "note";
@@ -290,6 +335,11 @@ export type DirectiveJson =
       account: string;
       comment: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "document";
@@ -305,6 +355,11 @@ export type DirectiveJson =
        */
       links?: Array<string>;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "price";
@@ -312,6 +367,11 @@ export type DirectiveJson =
       currency: string;
       amount: AmountValue;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "query";
@@ -319,6 +379,11 @@ export type DirectiveJson =
       name: string;
       query_string: string;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     }
   | {
       type: "custom";
@@ -334,6 +399,11 @@ export type DirectiveJson =
        */
       values?: Array<TypedValueJson>;
       meta?: { [key in string]: MetaValueJson };
+      /**
+       * Where this directive was written, when the surface that
+       * produced it tracks source positions (see [`SourceLocationJson`]).
+       */
+      location?: SourceLocationJson;
     };
 
 /**
@@ -751,6 +821,36 @@ export type ReferenceKind = "account" | "currency" | "payee";
  * Error severity level.
  */
 export type Severity = "error" | "warning";
+
+/**
+ * Where a directive was written in the source.
+ *
+ * Emitted by the multi-file surface (`Ledger.fromFiles` and the
+ * `Ledger.fromCache` blobs it produces), which is the only path that
+ * carries a source map. Directives with no source text — the `Open`s a
+ * synth plugin adds for accounts a ledger never opened — have no
+ * location, and neither do the single-source entry points (`parse`,
+ * `ParsedLedger`), which do not thread file positions yet.
+ *
+ * Lines are 1-based and inclusive on both ends, matching [`Error`]'s
+ * `line` / `end_line`. `end_line` is the last line the directive covers,
+ * so a transaction spans its header through its final posting.
+ */
+export type SourceLocationJson = {
+  /**
+   * File the directive was read from, as keyed in the map handed to
+   * `Ledger.fromFiles`.
+   */
+  file: string;
+  /**
+   * 1-based line where the directive starts.
+   */
+  line: number;
+  /**
+   * 1-based line where the directive ends (inclusive).
+   */
+  end_line: number;
+};
 
 /**
  * The kind of a symbol.

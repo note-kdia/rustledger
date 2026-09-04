@@ -225,6 +225,42 @@ pub struct TypedValueJson {
     pub value: MetaValueJson,
 }
 
+/// Where a directive was written in the source.
+///
+/// Emitted by the multi-file surface (`Ledger.fromFiles` and the
+/// `Ledger.fromCache` blobs it produces), which is the only path that
+/// carries a source map. Directives with no source text — the `Open`s a
+/// synth plugin adds for accounts a ledger never opened — have no
+/// location, and neither do the single-source entry points (`parse`,
+/// `ParsedLedger`), which do not thread file positions yet.
+///
+/// Lines are 1-based and inclusive on both ends, matching [`Error`]'s
+/// `line` / `end_line`. `end_line` is the last line the directive covers,
+/// so a transaction spans its header through its final posting.
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    rkyv::Archive,
+    rkyv::Serialize,
+    rkyv::Deserialize,
+)]
+#[cfg_attr(feature = "ts-export", derive(ts_rs::TS))]
+#[cfg_attr(feature = "json-schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "ts-export", ts(export, export_to = "bindings/"))]
+pub struct SourceLocationJson {
+    /// File the directive was read from, as keyed in the map handed to
+    /// `Ledger.fromFiles`.
+    pub file: String,
+    /// 1-based line where the directive starts.
+    pub line: u32,
+    /// 1-based line where the directive ends (inclusive).
+    pub end_line: u32,
+}
+
 /// A directive in JSON-serializable form.
 ///
 /// Each variant corresponds to a Beancount directive type, with fields
@@ -262,6 +298,11 @@ pub enum DirectiveJson {
         postings: Vec<PostingJson>,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Balance assertion.
     #[serde(rename = "balance")]
@@ -276,6 +317,11 @@ pub enum DirectiveJson {
         tolerance: Option<String>,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Open account.
     #[serde(rename = "open")]
@@ -288,6 +334,11 @@ pub enum DirectiveJson {
         booking: Option<String>,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Close account.
     #[serde(rename = "close")]
@@ -296,6 +347,11 @@ pub enum DirectiveJson {
         account: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Commodity declaration.
     #[serde(rename = "commodity")]
@@ -304,6 +360,11 @@ pub enum DirectiveJson {
         currency: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Pad directive.
     #[serde(rename = "pad")]
@@ -313,6 +374,11 @@ pub enum DirectiveJson {
         source_account: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Event directive.
     #[serde(rename = "event")]
@@ -322,6 +388,11 @@ pub enum DirectiveJson {
         value: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Note directive.
     #[serde(rename = "note")]
@@ -331,6 +402,11 @@ pub enum DirectiveJson {
         comment: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Document directive.
     #[serde(rename = "document")]
@@ -346,6 +422,11 @@ pub enum DirectiveJson {
         links: Vec<String>,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Price directive.
     #[serde(rename = "price")]
@@ -355,6 +436,11 @@ pub enum DirectiveJson {
         amount: AmountValue,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Query directive.
     #[serde(rename = "query")]
@@ -364,6 +450,11 @@ pub enum DirectiveJson {
         query_string: String,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
     /// Custom directive.
     ///
@@ -399,6 +490,11 @@ pub enum DirectiveJson {
         values: Vec<TypedValueJson>,
         #[serde(skip_serializing_if = "HashMap::is_empty", default)]
         meta: HashMap<String, MetaValueJson>,
+        /// Where this directive was written, when the surface that
+        /// produced it tracks source positions (see [`SourceLocationJson`]).
+        #[serde(skip_serializing_if = "Option::is_none", default)]
+        #[cfg_attr(feature = "ts-export", ts(optional))]
+        location: Option<SourceLocationJson>,
     },
 }
 

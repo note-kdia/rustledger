@@ -897,6 +897,7 @@ option "operating_currency" "EUR"
         let processed = load_and_book(source);
         let payload = cache::LedgerPayload {
             directives: processed.directives.clone(),
+            locations: Vec::new(),
             options: processed.options.clone(),
             account_type_names: Vec::new(),
             errors: Vec::new(),

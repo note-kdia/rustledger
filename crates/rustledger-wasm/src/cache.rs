@@ -22,7 +22,7 @@
 
 use rustledger_core::Directive;
 
-use crate::types::{Error, LedgerOptions};
+use crate::types::{Error, LedgerOptions, SourceLocationJson};
 
 /// Current cache format version. Increment when the serialized format changes.
 ///
@@ -107,7 +107,12 @@ use crate::types::{Error, LedgerOptions};
 /// carrying a second juxtaposed number, is diagnosed rather than partly read
 /// and partly discarded (#2193). Loader v35. Same shape as v19: the archived
 /// directive is identical and the diagnostic is what a stale blob would hide.
-pub const CACHE_VERSION: u32 = 20;
+/// v21: `LedgerPayload` carries the source location of each directive, so
+/// `fromCache` ledgers report `location` the way `fromFiles` ones do. Loader
+/// unchanged (its own cache archives the `Spanned` directives these locations
+/// are derived from). Archived LAYOUT changed: a v20 blob has no `locations`
+/// field and would be read at the wrong offsets.
+pub const CACHE_VERSION: u32 = 21;
 
 /// The `rustledger-loader` cache version this one was last reconciled with.
 ///
@@ -167,6 +172,11 @@ pub struct ParsedLedgerPayload {
 #[derive(Debug, rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)]
 pub struct LedgerPayload {
     pub directives: Vec<Directive>,
+    /// Where each directive was written, aligned with `directives`.
+    /// `None` for directives with no source text (a synth plugin's `Open`).
+    /// Locations are derived from the loader's source map, which the cache
+    /// does not archive, so they have to travel with the directives.
+    pub locations: Vec<Option<SourceLocationJson>>,
     pub options: LedgerOptions,
     /// Configured account-type roots as `[assets, liabilities, equity,
     /// income, expenses]` — `name_*` renames must survive the cache or
@@ -468,6 +478,7 @@ mod tests {
     fn test_roundtrip_ledger_payload() {
         let payload = LedgerPayload {
             directives: Vec::new(),
+            locations: Vec::new(),
             options: LedgerOptions {
                 operating_currencies: vec!["USD".to_string()],
                 title: Some("Test".to_string()),
@@ -525,6 +536,7 @@ option "operating_currency" "USD"
     fn test_bad_magic_returns_error() {
         let mut bytes = serialize_ledger(&LedgerPayload {
             directives: Vec::new(),
+            locations: Vec::new(),
             options: LedgerOptions::default(),
             account_type_names: Vec::new(),
             errors: Vec::new(),
@@ -547,6 +559,7 @@ option "operating_currency" "USD"
     fn test_version_mismatch_returns_error() {
         let mut bytes = serialize_ledger(&LedgerPayload {
             directives: Vec::new(),
+            locations: Vec::new(),
             options: LedgerOptions::default(),
             account_type_names: Vec::new(),
             errors: Vec::new(),
@@ -587,6 +600,7 @@ option "operating_currency" "USD"
         // Serialized Ledger bytes should not deserialize as ParsedLedger
         let bytes = serialize_ledger(&LedgerPayload {
             directives: Vec::new(),
+            locations: Vec::new(),
             options: LedgerOptions::default(),
             account_type_names: Vec::new(),
             errors: Vec::new(),

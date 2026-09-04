@@ -6,7 +6,7 @@ use rustledger_core::{Directive, MetaValue, Metadata};
 
 use crate::types::{
     AmountValue, CellValue, CostNumberJson, CostValue, DirectiveJson, MetaValueJson, PositionValue,
-    PostingCostJson, PostingJson, TypedValueJson,
+    PostingCostJson, PostingJson, SourceLocationJson, TypedValueJson,
 };
 
 /// Lower a host [`MetaValue`] to the wire [`MetaValueJson`].
@@ -71,8 +71,22 @@ fn meta_value_to_typed_json(value: &MetaValue) -> TypedValueJson {
     }
 }
 
-/// Convert a Directive to its JSON representation.
+/// Convert a Directive to its JSON representation, without a source
+/// location.
+///
+/// Use [`directive_to_json_at`] on surfaces that know where the directive
+/// was written; this one is for the paths that do not (single-source
+/// entry points, plugin output, expanded pads).
 pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
+    directive_to_json_at(directive, None)
+}
+
+/// Convert a Directive to its JSON representation, carrying the source
+/// location it was loaded from.
+pub fn directive_to_json_at(
+    directive: &Directive,
+    location: Option<SourceLocationJson>,
+) -> DirectiveJson {
     use rustledger_core::PriceAnnotation;
 
     fn price_annotation_to_amount(pr: &PriceAnnotation) -> Option<AmountValue> {
@@ -151,6 +165,7 @@ pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
                 })
                 .collect(),
             meta: metadata_to_json(&txn.meta),
+            location,
         },
         Directive::Balance(bal) => DirectiveJson::Balance {
             date: bal.date.to_string(),
@@ -161,6 +176,7 @@ pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
             },
             tolerance: bal.tolerance.map(|t| t.to_string()),
             meta: metadata_to_json(&bal.meta),
+            location,
         },
         Directive::Open(open) => DirectiveJson::Open {
             date: open.date.to_string(),
@@ -173,34 +189,40 @@ pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
             // glaring-bug-in-same-crate gets fixed alongside #1168.
             booking: open.booking.clone(),
             meta: metadata_to_json(&open.meta),
+            location,
         },
         Directive::Close(close) => DirectiveJson::Close {
             date: close.date.to_string(),
             account: close.account.to_string(),
             meta: metadata_to_json(&close.meta),
+            location,
         },
         Directive::Commodity(comm) => DirectiveJson::Commodity {
             date: comm.date.to_string(),
             currency: comm.currency.to_string(),
             meta: metadata_to_json(&comm.meta),
+            location,
         },
         Directive::Pad(pad) => DirectiveJson::Pad {
             date: pad.date.to_string(),
             account: pad.account.to_string(),
             source_account: pad.source_account.to_string(),
             meta: metadata_to_json(&pad.meta),
+            location,
         },
         Directive::Event(event) => DirectiveJson::Event {
             date: event.date.to_string(),
             event_type: event.event_type.clone(),
             value: event.value.clone(),
             meta: metadata_to_json(&event.meta),
+            location,
         },
         Directive::Note(note) => DirectiveJson::Note {
             date: note.date.to_string(),
             account: note.account.to_string(),
             comment: note.comment.clone(),
             meta: metadata_to_json(&note.meta),
+            location,
         },
         Directive::Document(doc) => DirectiveJson::Document {
             date: doc.date.to_string(),
@@ -209,6 +231,7 @@ pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
             tags: doc.tags.iter().map(ToString::to_string).collect(),
             links: doc.links.iter().map(ToString::to_string).collect(),
             meta: metadata_to_json(&doc.meta),
+            location,
         },
         Directive::Price(price) => DirectiveJson::Price {
             date: price.date.to_string(),
@@ -218,18 +241,21 @@ pub fn directive_to_json(directive: &Directive) -> DirectiveJson {
                 currency: price.amount.currency.to_string(),
             },
             meta: metadata_to_json(&price.meta),
+            location,
         },
         Directive::Query(query) => DirectiveJson::Query {
             date: query.date.to_string(),
             name: query.name.clone(),
             query_string: query.query.clone(),
             meta: metadata_to_json(&query.meta),
+            location,
         },
         Directive::Custom(custom) => DirectiveJson::Custom {
             date: custom.date.to_string(),
             custom_type: custom.custom_type.clone(),
             values: custom.values.iter().map(meta_value_to_typed_json).collect(),
             meta: metadata_to_json(&custom.meta),
+            location,
         },
     }
 }

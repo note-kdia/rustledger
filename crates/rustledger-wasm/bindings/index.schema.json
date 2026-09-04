@@ -371,6 +371,17 @@
               },
               "type": "array"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -417,6 +428,17 @@
             "date": {
               "type": "string"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -453,6 +475,17 @@
             "date": {
               "type": "string"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -475,6 +508,17 @@
             },
             "date": {
               "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -499,6 +543,17 @@
             "date": {
               "type": "string"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -521,6 +576,17 @@
             },
             "date": {
               "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -547,6 +613,17 @@
             },
             "event_type": {
               "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -577,6 +654,17 @@
             "date": {
               "type": "string"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -606,6 +694,17 @@
                 "type": "string"
               },
               "type": "array"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -643,6 +742,17 @@
             "date": {
               "type": "string"
             },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
+            },
             "meta": {
               "additionalProperties": {
                 "$ref": "#/$defs/MetaValueJson"
@@ -662,6 +772,17 @@
           "properties": {
             "date": {
               "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -691,6 +812,17 @@
             },
             "date": {
               "type": "string"
+            },
+            "location": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SourceLocationJson"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Where this directive was written, when the surface that\nproduced it tracks source positions (see [`SourceLocationJson`])."
             },
             "meta": {
               "additionalProperties": {
@@ -1242,6 +1374,29 @@
           "type": "string"
         }
       ]
+    },
+    "SourceLocationJson": {
+      "description": "Where a directive was written in the source.\n\nEmitted by the multi-file surface (`Ledger.fromFiles` and the\n`Ledger.fromCache` blobs it produces), which is the only path that\ncarries a source map. Directives with no source text — the `Open`s a\nsynth plugin adds for accounts a ledger never opened — have no\nlocation, and neither do the single-source entry points (`parse`,\n`ParsedLedger`), which do not thread file positions yet.\n\nLines are 1-based and inclusive on both ends, matching [`Error`]'s\n`line` / `end_line`. `end_line` is the last line the directive covers,\nso a transaction spans its header through its final posting.",
+      "properties": {
+        "end_line": {
+          "description": "1-based line where the directive ends (inclusive).",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "file": {
+          "description": "File the directive was read from, as keyed in the map handed to\n`Ledger.fromFiles`.",
+          "type": "string"
+        },
+        "line": {
+          "description": "1-based line where the directive starts.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": ["file", "line", "end_line"],
+      "type": "object"
     },
     "SymbolKind": {
       "description": "The kind of a symbol.",
