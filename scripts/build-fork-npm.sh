@@ -10,7 +10,12 @@
 # fork's patch series, e.g. upstream 0.22.0 -> `0.22.0-location.1`.
 #
 # Usage: scripts/build-fork-npm.sh <npm version>
-# Then:  cd crates/rustledger-wasm/pkg && npm publish --access public
+# Then:  cd crates/rustledger-wasm/pkg && npm publish --access public --tag latest
+#
+# `--tag latest` is required, not decoration: every version this fork
+# publishes is a semver prerelease (`0.22.0-location.2`), and npm refuses to
+# publish one without a dist-tag. Naming `latest` keeps the newest fork build
+# the one a plain `npm install` gets, as the earlier ones are.
 set -euo pipefail
 
 VERSION="${1:-}"
@@ -40,7 +45,8 @@ with open(path) as f:
 package["version"] = version
 package["repository"] = {
     "type": "git",
-    "url": "https://github.com/note-kdia/rustledger",
+    # The form npm normalizes to, written out so publishing says nothing.
+    "url": "git+https://github.com/note-kdia/rustledger.git",
 }
 package["description"] = (
     "Beancount WebAssembly bindings for JavaScript/TypeScript "
