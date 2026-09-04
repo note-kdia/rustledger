@@ -112,7 +112,12 @@ use crate::types::{Error, LedgerOptions, SourceLocationJson};
 /// unchanged (its own cache archives the `Spanned` directives these locations
 /// are derived from). Archived LAYOUT changed: a v20 blob has no `locations`
 /// field and would be read at the wrong offsets.
-pub const CACHE_VERSION: u32 = 21;
+/// v22: parse errors are archived one by one, with the file and line they were
+/// written on, instead of the single "parse errors in <file>" the loader's
+/// `process` flattens them into (`with_detailed_load_errors`). Loader
+/// unchanged. Archived LAYOUT unchanged: what a v21 blob would hide is the
+/// diagnostic, the same shape as v19 and v20.
+pub const CACHE_VERSION: u32 = 22;
 
 /// The `rustledger-loader` cache version this one was last reconciled with.
 ///

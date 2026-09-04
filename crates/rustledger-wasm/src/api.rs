@@ -43,7 +43,7 @@ fn load_error_is_fatal(error: &LoadError) -> bool {
 /// Convert [`LoadResult`] errors to detailed Error objects with line/column info.
 ///
 /// This preserves parse error details that would be lost by simple `to_string()`.
-fn load_errors_to_errors(load_result: &LoadResult) -> Vec<Error> {
+pub fn load_errors_to_errors(load_result: &LoadResult) -> Vec<Error> {
     let mut errors = Vec::new();
 
     for load_error in &load_result.errors {
@@ -77,6 +77,32 @@ fn load_errors_to_errors(load_result: &LoadResult) -> Vec<Error> {
         }
     }
 
+    errors
+}
+
+/// Report the load errors in full, in place of the flattened ones `process`
+/// leaves on the ledger.
+///
+/// `process` records every load error as a single `LOAD` ledger error carrying
+/// only `LoadError`'s Display. For `ParseErrors` that reads "parse errors in
+/// <file>": the code, message and span of each parse error are gone, and so is
+/// the file, since the `LOAD` error has no location. `rledger check` does not
+/// go through that — it reads `load_result.errors` itself and reports every
+/// parse error where it was written. `load_errors` (from
+/// [`load_errors_to_errors`], taken before `process` consumed the
+/// `LoadResult`) is that same detail, and it replaces the `LOAD` errors here so
+/// WASM consumers can point at the line too.
+pub fn with_detailed_load_errors(
+    load_errors: Vec<Error>,
+    ledger_errors: Vec<rustledger_loader::LedgerError>,
+) -> Vec<Error> {
+    let mut errors = load_errors;
+    errors.extend(
+        ledger_errors
+            .into_iter()
+            .map(Error::from)
+            .filter(|error| error.code.as_deref() != Some("LOAD")),
+    );
     errors
 }
 

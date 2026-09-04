@@ -614,6 +614,10 @@ impl Ledger {
             ..Default::default()
         };
 
+        // Take the load errors in full before `process` consumes the
+        // `LoadResult` and flattens them — see `with_detailed_load_errors`.
+        let load_errors = crate::api::load_errors_to_errors(&load_result);
+
         match process(load_result, &load_options) {
             Ok(ledger) => {
                 // Read the locations before the `Spanned` wrappers are
@@ -621,7 +625,7 @@ impl Ledger {
                 let locations = locations_of(&ledger.directives, &ledger.source_map);
                 let directives: Vec<Directive> =
                     ledger.directives.into_iter().map(|s| s.value).collect();
-                let mut errors: Vec<Error> = ledger.errors.into_iter().map(Error::from).collect();
+                let mut errors = crate::api::with_detailed_load_errors(load_errors, ledger.errors);
                 // Include option warnings (E7001–E7006) so WASM consumers
                 // see the same diagnostics as `rledger check` and the LSP.
                 for w in &ledger.options.warnings {
@@ -638,14 +642,20 @@ impl Ledger {
                     editor_cache,
                 })
             }
-            Err(e) => Ok(Self {
-                directives: Vec::new(),
-                locations: Vec::new(),
-                options,
-                account_types,
-                errors: vec![Error::new(format!("Processing error: {e}"))],
-                editor_cache: editor::EditorCache::from_directives(&[]),
-            }),
+            Err(e) => {
+                // The load errors are what usually explains a failed
+                // processing run, so keep them ahead of it.
+                let mut errors = load_errors;
+                errors.push(Error::new(format!("Processing error: {e}")));
+                Ok(Self {
+                    directives: Vec::new(),
+                    locations: Vec::new(),
+                    options,
+                    account_types,
+                    errors,
+                    editor_cache: editor::EditorCache::from_directives(&[]),
+                })
+            }
         }
     }
 
@@ -804,25 +814,44 @@ mod tests {
     use super::*;
     use rustledger_loader::{LoadOptions, Loader, VirtualFileSystem, process};
 
-    /// Load a ledger the way `Ledger::from_files` does.
-    fn load(files: &[(&str, &str)], entry_point: &str) -> rustledger_loader::Ledger {
+    /// Read the files the way `Ledger::from_files` does, up to `process`.
+    fn read(files: &[(&str, &str)], entry_point: &str) -> rustledger_loader::LoadResult {
         let mut vfs = VirtualFileSystem::new();
         for (path, source) in files {
             vfs.add_file(*path, *source);
         }
-        let raw = Loader::new()
+        Loader::new()
             .with_filesystem(Box::new(vfs))
             .load(Path::new(entry_point))
-            .expect("the ledger loads");
+            .expect("the ledger loads")
+    }
 
+    /// Load a ledger the way `Ledger::from_files` does.
+    fn load(files: &[(&str, &str)], entry_point: &str) -> rustledger_loader::Ledger {
         process(
-            raw,
+            read(files, entry_point),
             &LoadOptions {
                 validate: true,
                 ..Default::default()
             },
         )
         .expect("the ledger processes")
+    }
+
+    /// The errors `Ledger::from_files` reports, built the way it builds them.
+    fn errors_of(files: &[(&str, &str)], entry_point: &str) -> Vec<Error> {
+        let raw = read(files, entry_point);
+        let load_errors = crate::api::load_errors_to_errors(&raw);
+        let ledger = process(
+            raw,
+            &LoadOptions {
+                validate: true,
+                ..Default::default()
+            },
+        )
+        .expect("the ledger processes");
+
+        crate::api::with_detailed_load_errors(load_errors, ledger.errors)
     }
 
     #[test]
@@ -867,6 +896,50 @@ include \"sub.beancount\"
                 // Included files are located in their own file, not the entry point.
                 ("sub.beancount".to_string(), 1, 3),
             ]
+        );
+    }
+
+    #[test]
+    fn a_parse_error_says_which_file_and_line_it_is_on() {
+        // A tag with non-ASCII letters, which the parser rejects: the kind of
+        // typo someone makes while editing, in an included file.
+        let main = "\
+option \"operating_currency\" \"JPY\"
+include \"sub.beancount\"
+
+2025-01-10 open Assets:Cash JPY
+2025-01-10 open Expenses:Food JPY
+";
+        let sub = "\
+2025-02-14 * \"Lunch\" #日用品
+  Expenses:Food    780 JPY
+  Assets:Cash
+";
+
+        let errors = errors_of(
+            &[("main.beancount", main), ("sub.beancount", sub)],
+            "main.beancount",
+        );
+
+        // The editor can be taken to the tag, the way `rledger check` points
+        // at it — not merely told that some file somewhere failed to parse.
+        let parse_errors: Vec<_> = errors
+            .iter()
+            .filter(|error| error.phase.as_deref() == Some("parse"))
+            .collect();
+        assert!(!parse_errors.is_empty(), "the tag is rejected");
+        for error in &parse_errors {
+            assert_eq!(error.file.as_deref(), Some("sub.beancount"));
+            assert_eq!(error.line, Some(1));
+            assert_eq!(error.code.as_deref(), Some("P0012"));
+            assert!(error.column.is_some(), "the column is kept too: {error:?}");
+        }
+
+        // And the flattened "parse errors in <file>" no longer stands in for it.
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.code.as_deref() != Some("LOAD"))
         );
     }
 
